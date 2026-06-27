@@ -53,72 +53,55 @@ d.line([(TS//2, 0), (TS//2, TS)], fill=(14, 40, 74))
 bg.save(os.path.join(OUT, "bg.gif"))
 print("wrote bg.gif", bg.size)
 
-# ---------------------------------------------------------------- crest.gif (official seal)
-S = 300
-crest = Image.new("RGB", (S, S), CREAM)
-d = ImageDraw.Draw(crest)
-cx = cy = S // 2
-# outer rings
-d.ellipse([8, 8, S-8, S-8], outline=NAVY, width=6)
-d.ellipse([22, 22, S-22, S-22], fill=NAVY2, outline=GOLD, width=3)
-d.ellipse([78, 78, S-78, S-78], outline=GOLD, width=2)
-# inner disc
-d.ellipse([86, 86, S-86, S-86], fill=CREAM)
+# ---------------------------------------------------------------- crest.png (official seal)
+# The seal artwork itself is supplied externally (assets/crest_new.png). Here we just
+# crop it to a clean circle with an anti-aliased alpha edge so it floats on the navy
+# masthead with the gold pinstripe ring as its visible border.
+def process_crest(out=300, ss=4):
+    srcp = os.path.join(OUT, "crest_new.png")
+    if not os.path.exists(srcp):
+        print("SKIP crest: assets/crest_new.png not found")
+        return
+    src = Image.open(srcp).convert("RGBA")
+    W, H = src.size
+    mask = Image.new("L", (W*ss, H*ss), 0)
+    ImageDraw.Draw(mask).ellipse([0, 0, W*ss-1, H*ss-1], fill=255)
+    mask = mask.resize((W, H), Image.LANCZOS)
+    circ = src.copy()
+    circ.putalpha(mask)
+    circ.resize((out, out), Image.LANCZOS).save(os.path.join(OUT, "crest.png"))
+    print("wrote crest.png (circular from crest_new.png)", (out, out))
 
-def arc_text(draw, text, radius, start_deg, end_deg, fnt, fill, flip=False):
-    n = len(text)
-    if n == 1:
-        ang = (start_deg + end_deg) / 2
-    span = (end_deg - start_deg)
-    for i, ch in enumerate(text):
-        t = i / max(n - 1, 1)
-        ang = start_deg + span * t
-        rad = math.radians(ang)
-        # char image
-        bb = font_bbox(fnt, ch)
-        cw, chh = bb
-        ci = Image.new("RGBA", (cw + 4, chh + 4), (0, 0, 0, 0))
-        ImageDraw.Draw(ci).text((2, 2), ch, font=fnt, fill=fill)
-        rot = -(ang + 90) if not flip else -(ang - 90)
-        ci = ci.rotate(rot, expand=1, resample=Image.BICUBIC)
-        px = cx + radius * math.cos(rad) - ci.width / 2
-        py = cy + radius * math.sin(rad) - ci.height / 2
-        crest.paste(ci, (int(px), int(py)), ci)
+process_crest(300, 4)
 
-def font_bbox(fnt, ch):
-    bb = fnt.getbbox(ch)
-    return (bb[2] - bb[0] + 1, bb[3] - bb[1] + 1)
+# ---------------------------------------------------------------- sponsor logo tiles
+# Originals live in assets/logos/<slug>.png (downloaded vintage brand logos). We
+# normalise each into a uniform white tile so the sponsor grid stays tidy.
+def process_sponsor_tiles(tw=156, th=56):
+    LOG = os.path.join(OUT, "logos")
+    if not os.path.isdir(LOG):
+        print("SKIP sponsor tiles: assets/logos not found")
+        return
+    slugs = ["netscape","geocities","macromedia","frontpage",
+             "altavista","flash","compuserve","excite"]
+    boxw, boxh = tw - 14, th - 12
+    made = 0
+    for s in slugs:
+        srcp = os.path.join(LOG, s + ".png")
+        if not os.path.exists(srcp):
+            print("  missing logo:", s); continue
+        im = Image.open(srcp).convert("RGBA")
+        bb = im.getbbox()
+        if bb: im = im.crop(bb)
+        r = min(boxw/im.width, boxh/im.height)
+        im = im.resize((max(1,int(im.width*r)), max(1,int(im.height*r))), Image.LANCZOS)
+        tile = Image.new("RGB", (tw, th), WHITE)
+        tile.paste(im, ((tw-im.width)//2, (th-im.height)//2), im)
+        tile.save(os.path.join(LOG, s + "_cell.png"))
+        made += 1
+    print("wrote %d sponsor tiles (%dx%d)" % (made, tw, th))
 
-ring_font = font("Georgia Bold.ttf", 17)
-R = 122
-# top arc text (reads left-to-right across the top)
-arc_text(d, "WEB DEVELOPMENT ASSOCIATION", R, 205, 335, ring_font, GOLDLT)
-# bottom arc
-arc_text(d, "TABLES FOR LAYOUT", R, 145, 35, ring_font, GOLDLT, flip=True)
-# side diamonds in the gaps
-for ang in (180, 0):
-    dx = cx + R*math.cos(math.radians(ang))
-    dy = cy + R*math.sin(math.radians(ang))
-    d.polygon([(dx, dy-6),(dx+6, dy),(dx, dy+6),(dx-6, dy)], fill=GOLDLT)
-
-# center glyph </td>
-glyph_font = font("Courier New Bold.ttf", 52)
-g = "</td>"
-bb = d.textbbox((0, 0), g, font=glyph_font)
-d.text((cx - (bb[2]-bb[0])/2, cy - (bb[3]-bb[1])/2 - 20), g, font=glyph_font, fill=NAVY2)
-# motto banner
-mfont = font("Georgia Bold Italic.ttf", 15)
-m = "STRUCTURA SUPER OMNIA"
-bb = d.textbbox((0,0), m, font=mfont)
-d.rectangle([cx-(bb[2]-bb[0])/2-10, cy+24, cx+(bb[2]-bb[0])/2+10, cy+48], fill=NAVY2)
-d.text((cx-(bb[2]-bb[0])/2, cy+27), m, font=mfont, fill=GOLDLT)
-# est
-efont = font("Georgia.ttf", 13)
-e = "EST. 2026"
-bb = d.textbbox((0,0), e, font=efont)
-d.text((cx-(bb[2]-bb[0])/2, cy+54), e, font=efont, fill=NAVY2)
-crest.save(os.path.join(OUT, "crest.gif"))
-print("wrote crest.gif", crest.size)
+process_sponsor_tiles()
 
 # ---------------------------------------------------------------- construction.gif (animated)
 CW, CH = 230, 38
@@ -160,26 +143,46 @@ bv.save(os.path.join(OUT, "badge-bestviewed.gif"))
 print("wrote badge-bestviewed.gif", (bw,bh))
 
 # ---------------------------------------------------------------- award.gif (rosette)
-aw, ah = 96, 116
-aw_img = Image.new("RGB", (aw, ah), CREAM)
-d = ImageDraw.Draw(aw_img)
-# ribbon tails
-d.polygon([(38,60),(30,112),(48,96),(48,60)], fill=RED)
-d.polygon([(58,60),(66,112),(48,96),(48,60)], fill=(110,16,16))
-# medal
-d.ellipse([20,8,76,64], fill=GOLD, outline=NAVY, width=3)
-d.ellipse([28,16,68,56], outline=GOLDLT, width=2)
-fa = font("Georgia Bold.ttf", 9)
-for i,(line) in enumerate(["COOL","SITE","AWARD"]):
-    bb = d.textbbox((0,0), line, font=fa)
-    d.text((48-(bb[2]-bb[0])/2, 20+i*12), line, font=fa, fill=NAVY)
-# caption
-fc = font("Arial Bold.ttf", 9)
-cap="WDART APPROVED"
-bb=d.textbbox((0,0),cap,font=fc)
-d.text((aw/2-(bb[2]-bb[0])/2, 104), cap, font=fc, fill=NAVY2)
-aw_img.save(os.path.join(OUT, "award.gif"))
-print("wrote award.gif", (aw,ah))
+def render_award(aw=96, ah=116, ss=4):
+    s = ss
+    W, H = aw*s, ah*s
+    img = Image.new("RGB", (W, H), CREAM)
+    d = ImageDraw.Draw(img)
+    cx = W//2
+    medal_cy = 36*s
+    medal_r = 30*s
+    # ribbon tails
+    d.polygon([(cx-10*s, medal_cy+18*s),(cx-18*s, H-4*s),(cx, H-18*s)], fill=(120,16,16))
+    d.polygon([(cx+10*s, medal_cy+18*s),(cx+18*s, H-4*s),(cx, H-18*s)], fill=RED)
+    # fluted rosette edge (gold gear-ish disc behind medal)
+    pts = []
+    spokes = 24
+    for k in range(spokes*2):
+        a = math.pi*k/spokes
+        rr = medal_r+6*s if k % 2 == 0 else medal_r+1*s
+        pts.append((cx+rr*math.cos(a), medal_cy+rr*math.sin(a)))
+    d.polygon(pts, fill=(168,132,20))
+    # medal
+    d.ellipse([cx-medal_r, medal_cy-medal_r, cx+medal_r, medal_cy+medal_r],
+              fill=GOLD, outline=NAVY, width=3*s)
+    d.ellipse([cx-medal_r+6*s, medal_cy-medal_r+6*s, cx+medal_r-6*s, medal_cy+medal_r-6*s],
+              outline=GOLDLT, width=2*s)
+    fa = font("Georgia Bold.ttf", 9*s)
+    lines = ["COOL","SITE","AWARD"]
+    for i, ln in enumerate(lines):
+        bb = d.textbbox((0,0), ln, font=fa)
+        d.text((cx-(bb[2]-bb[0])/2 - bb[0], medal_cy - 16*s + i*11*s - bb[1]),
+               ln, font=fa, fill=NAVY)
+    # caption
+    fc = font("Arial Bold.ttf", 9*s)
+    cap = "WDART APPROVED"
+    bb = d.textbbox((0,0), cap, font=fc)
+    d.text((cx-(bb[2]-bb[0])/2 - bb[0], H-12*s - bb[1]), cap, font=fc, fill=NAVY2)
+    return img.resize((aw, ah), Image.LANCZOS)
+
+award = render_award()
+award.convert("P", palette=Image.ADAPTIVE, colors=255).save(os.path.join(OUT, "award.gif"))
+print("wrote award.gif", award.size)
 
 # ---------------------------------------------------------------- headerbar tile (navy gradient-ish)
 hb = Image.new("RGB", (8, 34), NAVY2)
