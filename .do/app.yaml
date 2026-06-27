@@ -1,0 +1,29 @@
+# DigitalOcean App Platform spec for WDART.
+# Static site, no build step — App Platform serves index.html straight from the repo.
+#
+# Deploy (first time):
+#   doctl apps create --spec .do/app.yaml
+# Update an existing app:
+#   doctl apps update <APP_ID> --spec .do/app.yaml
+#
+# After the app exists, point wdart.org's DNS at DigitalOcean (the dashboard shows the
+# exact records) and the domains below will provision automatically with managed TLS.
+name: wdart
+region: nyc
+static_sites:
+  - name: wdart-web
+    github:
+      repo: BIGjuevos/wdart
+      branch: main
+      deploy_on_push: true
+    source_dir: /
+    index_document: index.html
+    error_document: index.html
+    catchall_document: index.html
+    routes:
+      - path: /
+domains:
+  - domain: wdart.org
+    type: PRIMARY
+  - domain: www.wdart.org
+    type: ALIAS

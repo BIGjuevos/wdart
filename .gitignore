@@ -1,0 +1,4 @@
+.playwright-mcp/
+*.jpeg
+*.log
+.DS_Store
