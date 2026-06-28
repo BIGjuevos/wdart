@@ -1,25 +1,32 @@
 # DigitalOcean App Platform spec for WDART.
-# Static site, no build step — App Platform serves index.html straight from the repo.
+# Static site, no build step — App Platform serves index.html from a public git clone.
 #
 # Deploy (first time):
-#   doctl apps create --spec .do/app.yaml
+#   doctl apps create --spec .do/app.yaml --project-id <PROJECT_ID>
 # Update an existing app:
 #   doctl apps update <APP_ID> --spec .do/app.yaml
+# Redeploy after pushing content (no auto-deploy with the git-clone source):
+#   doctl apps create-deployment <APP_ID>
 #
-# After the app exists, point wdart.org's DNS at DigitalOcean (the dashboard shows the
-# exact records) and the domains below will provision automatically with managed TLS.
+# DNS (wdart.org is hosted in DigitalOcean DNS; registrar nameservers point at DO):
+#   App Platform's automatic managed-DNS (the per-domain `zone:` directive) did NOT
+#   provision reliably for this app, so the records below are created MANUALLY in the
+#   DO DNS zone, NOT by this spec:
+#     A     @     <App Platform edge IPs>            # apex -> the app's ingress edge
+#     CNAME www   <app>.ondigitalocean.app.          # e.g. wdart-aoirm.ondigitalocean.app
+#   The apex TLS cert (CN=wdart.org) is issued/renewed by App Platform once the apex
+#   resolves to the edge. If the app is ever recreated, refresh the www CNAME target
+#   and re-check the apex A records against the new ingress.
 name: wdart
 region: nyc
 static_sites:
   - name: wdart-web
-    github:
-      repo: BIGjuevos/wdart
+    git:
+      repo_clone_url: https://github.com/BIGjuevos/wdart.git
       branch: main
-      deploy_on_push: true
     source_dir: /
     index_document: index.html
     error_document: index.html
-    catchall_document: index.html
     routes:
       - path: /
 domains:
